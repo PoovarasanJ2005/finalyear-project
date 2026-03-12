@@ -3,3 +3,6 @@ tensorflow
 numpy
 pillow
 werkzeug
+PyJWT
+pymongo[srv]
+dnspython

@@ -1,12 +1,13 @@
 import os
-import sqlite3
 import jwt
 import datetime
+from bson import ObjectId
 from functools import wraps
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for, make_response
+from flask import Flask, render_template, request, jsonify, redirect, url_for, make_response
 from werkzeug.security import generate_password_hash, check_password_hash
+from pymongo import MongoClient
 import tensorflow as tf
-from tensorflow.keras.models import load_model, Model
+from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing import image
 from tensorflow.keras.applications.imagenet_utils import preprocess_input
 import numpy as np
@@ -15,27 +16,22 @@ import io
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'super-secret-key-12345'
-DB_FILE = os.path.join(os.path.dirname(__file__), 'database.db')
 
-# --- Database Init ---
-def init_db():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS users
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT, email TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS history
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, timestamp TEXT, blood_group TEXT, confidence TEXT)''')
-    conn.commit()
-    conn.close()
-
-init_db()
+# ─── MongoDB Atlas Connection ──────────────────────────────────────────────────
+# Paste your MongoDB Atlas connection string below:
+MONGO_URI = "mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/bloodgroup_db?retryWrites=true&w=majority"
+client = MongoClient(MONGO_URI)
+db = client['bloodgroup_db']
+users_col = db['users']
+history_col = db['history']
+# ──────────────────────────────────────────────────────────────────────────────
 
 # --- Model Loading ---
 MODEL_PATH = os.path.join(os.path.dirname(__file__), 'model', 'model_blood_group_detection_resnet.h5')
 print(f"Loading model from: {MODEL_PATH}")
-
 try:
     model = load_model(MODEL_PATH, compile=False)
+    print("Model loaded successfully.")
 except Exception as e:
     print(f"Error loading model: {e}")
     model = None
@@ -52,7 +48,7 @@ def prepare_image(img_bytes):
     x = preprocess_input(x, mode='caffe')
     return x
 
-# --- Auth Decorator ---
+# --- JWT Auth Decorator ---
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -61,69 +57,72 @@ def token_required(f):
             return redirect(url_for('login'))
         try:
             data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
-            current_user = data['user_id']
-        except:
+            current_user_id = data['user_id']
+        except Exception:
             return redirect(url_for('login'))
-        return f(current_user, *args, **kwargs)
+        return f(current_user_id, *args, **kwargs)
     return decorated
 
-# --- Routes ---
+# ─── Routes ───────────────────────────────────────────────────────────────────
 
 @app.route('/')
 def index():
-    # Public Main Page with project details
     token = request.cookies.get('token')
     logged_in = False
     if token:
         try:
             jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
             logged_in = True
-        except:
+        except Exception:
             pass
     return render_template('index.html', logged_in=logged_in)
+
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
-        email = request.form.get('email')
-        
-        hashed_password = generate_password_hash(password)
-        
-        try:
-            conn = sqlite3.connect(DB_FILE)
-            c = conn.cursor()
-            c.execute("INSERT INTO users (username, password, email) VALUES (?, ?, ?)", (username, hashed_password, email))
-            conn.commit()
-            conn.close()
-            return redirect(url_for('login'))
-        except sqlite3.IntegrityError:
-            return render_template('signup.html', error="Username already exists")
-            
+        email    = request.form.get('email')
+
+        if users_col.find_one({'username': username}):
+            return render_template('signup.html', error="Username already exists.")
+
+        users_col.insert_one({
+            'username': username,
+            'password': generate_password_hash(password),
+            'email'   : email,
+            'created_at': datetime.datetime.utcnow()
+        })
+        return redirect(url_for('login'))
+
     return render_template('signup.html')
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
-        
-        conn = sqlite3.connect(DB_FILE)
-        c = conn.cursor()
-        c.execute("SELECT id, password FROM users WHERE username=?", (username,))
-        user = c.fetchone()
-        conn.close()
-        
-        if user and check_password_hash(user[1], password):
-            token = jwt.encode({'user_id': user[0], 'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=24)}, app.config['SECRET_KEY'], algorithm="HS256")
+
+        user = users_col.find_one({'username': username})
+        if user and check_password_hash(user['password'], password):
+            token = jwt.encode(
+                {
+                    'user_id': str(user['_id']),
+                    'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=24)
+                },
+                app.config['SECRET_KEY'],
+                algorithm="HS256"
+            )
             resp = make_response(redirect(url_for('dashboard')))
             resp.set_cookie('token', token)
             return resp
-            
-        return render_template('login.html', error="Invalid credentials")
-        
+
+        return render_template('login.html', error="Invalid credentials. Please try again.")
+
     return render_template('login.html')
+
 
 @app.route('/logout')
 def logout():
@@ -131,85 +130,81 @@ def logout():
     resp.delete_cookie('token')
     return resp
 
+
 @app.route('/dashboard')
 @token_required
-def dashboard(current_user):
-    # Fetch username for header
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("SELECT username FROM users WHERE id=?", (current_user,))
-    username = c.fetchone()[0]
-    conn.close()
+def dashboard(current_user_id):
+    user = users_col.find_one({'_id': ObjectId(current_user_id)})
+    username = user['username'] if user else 'Unknown'
     return render_template('dashboard.html', username=username)
+
 
 @app.route('/profile', methods=['GET', 'POST'])
 @token_required
-def profile(current_user):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
+def profile(current_user_id):
+    user = users_col.find_one({'_id': ObjectId(current_user_id)})
+    msg = None
     if request.method == 'POST':
-        email = request.form.get('email')
-        c.execute("UPDATE users SET email=? WHERE id=?", (email, current_user))
-        conn.commit()
-        msg = "Profile updated safely."
-    else:
-        msg = None
-        
-    c.execute("SELECT username, email FROM users WHERE id=?", (current_user,))
-    user = c.fetchone()
-    conn.close()
-    return render_template('profile.html', user=user, msg=msg)
+        new_email = request.form.get('email')
+        users_col.update_one({'_id': ObjectId(current_user_id)}, {'$set': {'email': new_email}})
+        user = users_col.find_one({'_id': ObjectId(current_user_id)})
+        msg = "Profile updated successfully."
+
+    user_data = (user['username'], user.get('email', ''))
+    return render_template('profile.html', user=user_data, msg=msg)
+
 
 @app.route('/history')
 @token_required
-def history(current_user):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("SELECT timestamp, blood_group, confidence FROM history WHERE user_id=? ORDER BY id DESC", (current_user,))
-    records = c.fetchall()
-    conn.close()
+def history(current_user_id):
+    records_cursor = history_col.find(
+        {'user_id': current_user_id},
+        sort=[('_id', -1)]
+    )
+    records = [(r['timestamp'], r['blood_group'], r['confidence']) for r in records_cursor]
     return render_template('history.html', records=records)
+
 
 @app.route('/predict', methods=['POST'])
 @token_required
-def predict(current_user):
+def predict(current_user_id):
     if not model:
-        return jsonify({'error': 'Model not loaded.'}), 500
+        return jsonify({'error': 'ML model not loaded.'}), 500
     if 'image' not in request.files:
-        return jsonify({'error': 'No file part'}), 400
+        return jsonify({'error': 'No image file provided.'}), 400
+
     file = request.files['image']
     if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-        
+        return jsonify({'error': 'No file selected.'}), 400
+
     try:
-        img_bytes = file.read()
+        img_bytes     = file.read()
         processed_img = prepare_image(img_bytes)
-        
-        preds = model.predict(processed_img)
-        pred_class = np.argmax(preds, axis=1)[0]
-        
-        # User requested guaranteed 90%+ confidence for all images
+
+        preds      = model.predict(processed_img)
+        pred_class = int(np.argmax(preds, axis=1)[0])
+
+        # Guarantee 90 %+ display confidence as requested
         raw_confidence = float(preds[0][pred_class]) * 100
-        confidence = 90.0 + (raw_confidence % 9.9) # Safely guarantees 90.0 - 99.9%
-        
-        label = LABELS.get(pred_class, "Unknown")
-        
-        # Log to secure database with timeline
+        confidence     = 90.0 + (raw_confidence % 9.9)
+
+        label     = LABELS.get(pred_class, "Unknown")
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        conn = sqlite3.connect(DB_FILE)
-        c = conn.cursor()
-        c.execute("INSERT INTO history (user_id, timestamp, blood_group, confidence) VALUES (?, ?, ?, ?)", 
-                  (current_user, timestamp, label, f"{confidence:.2f}%"))
-        conn.commit()
-        conn.close()
-        
-        return jsonify({
+
+        # Save to MongoDB Atlas
+        history_col.insert_one({
+            'user_id'    : current_user_id,
+            'timestamp'  : timestamp,
             'blood_group': label,
-            'confidence': f"{confidence:.2f}%"
+            'confidence' : f"{confidence:.2f}%"
         })
+
+        return jsonify({'blood_group': label, 'confidence': f"{confidence:.2f}%"})
+
     except Exception as e:
         print(f"Prediction error: {e}")
         return jsonify({'error': str(e)}), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
