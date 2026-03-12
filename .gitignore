@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+
+# Virtual Environments
+venv/
+venv310/
+venv310_real/
+.venv/
+env/
+
+# Model file (very large - ~93MB, store via Git LFS or separately)
+web_app/model/*.h5
+
+# Database (contains private user data)
+web_app/database.db
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/

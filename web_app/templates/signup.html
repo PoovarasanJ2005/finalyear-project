@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blood Group AI - Sign Up</title>
+    <!-- Modern Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Main Style -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <div class="container"
+        style="max-width: 400px; padding: 2.5rem; background: var(--card-bg); border-radius: 1rem; border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+        <header>
+            <div class="logo">
+                <span class="icon">🩸</span>
+                <h1>BloodGroup AI</h1>
+            </div>
+            <p>Create Secure Medical Account</p>
+        </header>
+
+        <main>
+            {% if error %}
+            <div
+                style="background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #ef4444; padding: 0.5rem; border-radius: 0.5rem; text-align: center; margin-bottom: 1rem;">
+                {{ error }}
+            </div>
+            {% endif %}
+
+            <form action="{{ url_for('signup') }}" method="POST" id="auth-form"
+                style="display: flex; flex-direction: column; gap: 1.5rem; margin-top: 1rem;">
+                <div style="text-align: left;">
+                    <label style="color: var(--text-muted); font-size: 0.9rem; font-weight: 600;">Username</label>
+                    <input type="text" name="username" placeholder="doctor_smith" required
+                        style="width: 100%; padding: 0.8rem; border-radius: 0.5rem; background: var(--bg-color); color: var(--text-main); border: 1px solid var(--border); margin-top: 0.5rem; font-size: 1rem; box-sizing: border-box;">
+                </div>
+                <div style="text-align: left;">
+                    <label style="color: var(--text-muted); font-size: 0.9rem; font-weight: 600;">Office Email</label>
+                    <input type="email" name="email" placeholder="smith@hospital.com" required
+                        style="width: 100%; padding: 0.8rem; border-radius: 0.5rem; background: var(--bg-color); color: var(--text-main); border: 1px solid var(--border); margin-top: 0.5rem; font-size: 1rem; box-sizing: border-box;">
+                </div>
+                <div style="text-align: left;">
+                    <label style="color: var(--text-muted); font-size: 0.9rem; font-weight: 600;">Secure
+                        Password</label>
+                    <input type="password" name="password" placeholder="••••••••" required
+                        style="width: 100%; padding: 0.8rem; border-radius: 0.5rem; background: var(--bg-color); color: var(--text-main); border: 1px solid var(--border); margin-top: 0.5rem; font-size: 1rem; box-sizing: border-box;">
+                </div>
+                <button type="submit" class="primary-btn" style="margin-top: 0.5rem; padding: 1rem;">Register Account
+                    <span aria-hidden="true">&rarr;</span></button>
+                <p style="text-align: center; color: var(--text-muted); font-size: 0.8rem; margin-top: 0.5rem;">Already
+                    have an account? <a href="{{ url_for('login') }}"
+                        style="color: var(--primary); text-decoration: none;">Login</a></p>
+                <p style="text-align: center; color: var(--text-muted); font-size: 0.8rem; margin-top: 0.5rem;"><a
+                        href="{{ url_for('index') }}" style="color: var(--primary); text-decoration: none;">&larr; Back
+                        to Main Page</a></p>
+            </form>
+        </main>
+    </div>
+</body>
+
+</html>

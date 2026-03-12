@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scanner Dashboard - BloodGroup AI</title>
+    <!-- Modern Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Main Style -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .nav-top {
+            position: absolute;
+            right: 0;
+            top: 0;
+            display: flex;
+            gap: 10px;
+        }
+
+        .nav-btn {
+            background: var(--bg-color);
+            color: var(--primary);
+            border: 1px solid var(--primary);
+            padding: 0.4rem 0.8rem;
+            border-radius: 0.5rem;
+            text-decoration: none;
+            font-size: 0.85rem;
+            transition: all 0.3s;
+        }
+
+        .nav-btn:hover {
+            background: var(--primary);
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container" style="max-width: 700px;">
+        <!-- Header -->
+        <header style="position: relative;">
+            <div class="logo">
+                <span class="icon">🩸</span>
+                <h1>BloodGroup AI</h1>
+            </div>
+            <p>Scanner & Diagnostics Dashboard</p>
+            <p style="color: var(--success); font-size: 0.9rem; margin-top: 5px;">Authenticated as Dr. {{ username }}
+            </p>
+
+            <div class="nav-top">
+                <a href="{{ url_for('history') }}" class="nav-btn">View History</a>
+                <a href="{{ url_for('profile') }}" class="nav-btn">👤 Profile</a>
+                <a href="{{ url_for('logout') }}" class="nav-btn"
+                    style="border-color: var(--accent); color: var(--accent);">Log Out</a>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main>
+            <div class="upload-card">
+
+                <!-- USB Scanner UI -->
+                <div class="scan-area" id="scan-zone"
+                    style="padding: 2rem 1rem; border: 2px solid #22c55e; border-radius: 0.5rem; cursor: pointer; background: rgba(34, 197, 94, 0.1); margin-bottom: 2rem; transition: all 0.3s ease;">
+                    <span class="upload-icon" style="font-size: 3.5rem;">📸</span>
+                    <h3 style="color:#22c55e; font-size: 1.3rem;">Real-Time Scan</h3>
+                    <p style="color:var(--text-main); opacity: 0.9; margin-top: 5px;">Initiate scan from connected
+                        External USB Optical Device</p>
+                    <input type="file" id="scan-input" accept="image/*" capture="environment" hidden>
+                </div>
+
+                <div
+                    style="display: flex; align-items: center; justify-content: center; margin: 1.5rem 0; color: var(--text-muted); font-weight: bold; font-size: 0.9rem;">
+                    <span style="flex: 1; height: 1px; background: var(--border); margin-right: 1rem;"></span>
+                    OR
+                    <span style="flex: 1; height: 1px; background: var(--border); margin-left: 1rem;"></span>
+                </div>
+
+                <!-- Traditional Upload UI -->
+                <div class="upload-area" id="drop-zone" style="padding: 2rem 1rem;">
+                    <span class="upload-icon">👆</span>
+                    <h3>Upload Legacy Fingerprint Image</h3>
+                    <p>Drag & drop or click to select database files</p>
+                    <input type="file" id="file-input" accept="image/*" hidden>
+                </div>
+
+                <div class="preview-area" id="preview-container" style="display: none; margin-top: 2rem;">
+                    <img id="preview-image" src="" alt="Fingerprint Preview" style="border: 2px solid var(--primary);">
+                    <button id="remove-btn" class="secondary-btn">Delete Scan</button>
+                </div>
+
+                <div class="actions">
+                    <button id="predict-btn" class="primary-btn" disabled>Initialize AI Match & Detection</button>
+                    <div id="loading" class="spinner" style="display: none;"></div>
+                </div>
+            </div>
+
+            <!-- Result Section -->
+            <div class="result-card" id="result-container" style="display: none;">
+                <h2>Medical AI Result</h2>
+                <div class="result-box">
+                    <span class="blood-type" id="blood-group">--</span>
+                    <span class="confidence" id="confidence-score">Confidence: --%</span>
+                </div>
+                <p class="disclaimer">Detection data has been securely logged to internal system history.</p>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer>
+            <p>&copy; 2026 Medical Fingerprint Analysis Department.</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+
+</html>

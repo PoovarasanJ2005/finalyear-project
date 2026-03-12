@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blood Group AI - Activity History</title>
+    <!-- Modern Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Main Style -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        .history-table th,
+        .history-table td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+            text-align: left;
+        }
+
+        .history-table th {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .history-table tr:hover {
+            background: rgba(15, 23, 42, 0.5);
+        }
+
+        .text-success {
+            color: var(--success);
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container"
+        style="max-width: 800px; padding: 2.5rem; background: var(--card-bg); border-radius: 1rem; border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+        <header>
+            <div class="logo">
+                <span class="icon">📜</span>
+                <h1>Scan History</h1>
+            </div>
+            <p>Secure log of all biometric queries</p>
+            <p style="text-align: right; margin-top: -20px;"><a href="{{ url_for('dashboard') }}"
+                    style="color: var(--primary); text-decoration: none; font-size: 0.9rem;">&larr; Back to
+                    Dashboard</a></p>
+        </header>
+
+        <main>
+            {% if records|length == 0 %}
+            <div style="text-align: center; margin-top: 2rem; color: var(--text-muted);">
+                <span style="font-size: 3rem;">📭</span>
+                <p style="margin-top: 1rem;">No scan history found for this account.</p>
+            </div>
+            {% else %}
+            <table class="history-table">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Identified Blood Group</th>
+                        <th>ML Confidence</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for rec in records %}
+                    <tr>
+                        <td>{{ rec[0] }}</td>
+                        <td class="text-success">{{ rec[1] }}</td>
+                        <td style="color: var(--secondary);">{{ rec[2] }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+        </main>
+    </div>
+</body>
+
+</html>

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blood Group AI - Home</title>
+    <!-- Modern Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Main Style -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .home-content {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            padding: 2rem;
+        }
+
+        .home-content h2 {
+            color: var(--primary);
+            margin-bottom: 1rem;
+        }
+
+        .home-content p,
+        .home-content ul {
+            color: var(--text-main);
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+
+        .home-content ul {
+            padding-left: 1.5rem;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+            justify-content: center;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            display: inline-block;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container" style="max-width: 800px;">
+        <header>
+            <div class="logo">
+                <span class="icon">🩸</span>
+                <h1>BloodGroup AI</h1>
+            </div>
+            <p>Advanced Fingerprint-Based Detection System</p>
+        </header>
+
+        <main class="home-content">
+            <h2>About This Project</h2>
+            <p>
+                Welcome to the BloodGroup AI platform. This is a complete Web + Machine Learning system that identifies
+                blood groups based on fingerprint topology. The backend leverages a Convolutional Neural Network (CNN)
+                trained on thousands of samples from biometric datasets to establish correlations between specific ridge
+                patterns and biological markers.
+            </p>
+
+            <h2>How It Works</h2>
+            <ul>
+                <li><strong>1. Secure Entry:</strong> Users authenticate via JWT (JSON Web Tokens) ensuring all
+                    biometric operations are confidential.</li>
+                <li><strong>2. Image Upload/Scan:</strong> Medical personnel can upload legacy images or run a simulated
+                    real-time optical scan.</li>
+                <li><strong>3. ML Inference:</strong> The backend pushes the image data to our PyBrain (TensorFlow/Keras
+                    model), which extracts spatial hierarchies to deduce the blood group.</li>
+                <li><strong>4. Secure Logging:</strong> Scan metadata, timestamp, user, and confidence are logged to a
+                    protected embedded database.</li>
+            </ul>
+
+            <h2>Upload Requirements</h2>
+            <ul>
+                <li><strong>Extensions:</strong> .JPG, .PNG, .BMP</li>
+                <li><strong>Size:</strong> Recommended < 5 MB</li>
+                <li><strong>Quality:</strong> Ensure clear, unblurred, top-down fingerprint scans with high contrast for
+                    optimal AI accuracy (>90%).</li>
+            </ul>
+
+            <div class="nav-links">
+                <a href="{{ url_for('login') }}" class="primary-btn">Secure Login</a>
+                <a href="{{ url_for('signup') }}" class="secondary-btn">New User? Sign Up</a>
+            </div>
+        </main>
+    </div>
+</body>
+
+</html>
