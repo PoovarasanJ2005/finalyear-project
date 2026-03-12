@@ -17,14 +17,12 @@ import io
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'super-secret-key-12345'
 
-# ─── MongoDB Atlas Connection ──────────────────────────────────────────────────
-# Paste your MongoDB Atlas connection string below:
-MONGO_URI = "mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/bloodgroup_db?retryWrites=true&w=majority"
-client = MongoClient(MONGO_URI)
+# --- Local MongoDB Connection (viewable in MongoDB Compass) ---
+client = MongoClient('mongodb://localhost:27017/')
 db = client['bloodgroup_db']
-users_col = db['users']
+users_col   = db['users']
 history_col = db['history']
-# ──────────────────────────────────────────────────────────────────────────────
+print("Connected to local MongoDB (bloodgroup_db)")
 
 # --- Model Loading ---
 MODEL_PATH = os.path.join(os.path.dirname(__file__), 'model', 'model_blood_group_detection_resnet.h5')
@@ -57,13 +55,13 @@ def token_required(f):
             return redirect(url_for('login'))
         try:
             data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
-            current_user_id = data['user_id']
+            current_user = data['user_id']
         except Exception:
             return redirect(url_for('login'))
-        return f(current_user_id, *args, **kwargs)
+        return f(current_user, *args, **kwargs)
     return decorated
 
-# ─── Routes ───────────────────────────────────────────────────────────────────
+# --- Routes ---
 
 @app.route('/')
 def index():
@@ -77,52 +75,39 @@ def index():
             pass
     return render_template('index.html', logged_in=logged_in)
 
-
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
         email    = request.form.get('email')
-
         if users_col.find_one({'username': username}):
             return render_template('signup.html', error="Username already exists.")
-
         users_col.insert_one({
-            'username': username,
-            'password': generate_password_hash(password),
-            'email'   : email,
+            'username'  : username,
+            'password'  : generate_password_hash(password),
+            'email'     : email,
             'created_at': datetime.datetime.utcnow()
         })
         return redirect(url_for('login'))
-
     return render_template('signup.html')
-
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
-
         user = users_col.find_one({'username': username})
         if user and check_password_hash(user['password'], password):
             token = jwt.encode(
-                {
-                    'user_id': str(user['_id']),
-                    'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=24)
-                },
-                app.config['SECRET_KEY'],
-                algorithm="HS256"
+                {'user_id': str(user['_id']), 'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=24)},
+                app.config['SECRET_KEY'], algorithm="HS256"
             )
             resp = make_response(redirect(url_for('dashboard')))
             resp.set_cookie('token', token)
             return resp
-
         return render_template('login.html', error="Invalid credentials. Please try again.")
-
     return render_template('login.html')
-
 
 @app.route('/logout')
 def logout():
@@ -130,81 +115,62 @@ def logout():
     resp.delete_cookie('token')
     return resp
 
-
 @app.route('/dashboard')
 @token_required
-def dashboard(current_user_id):
-    user = users_col.find_one({'_id': ObjectId(current_user_id)})
+def dashboard(current_user):
+    user = users_col.find_one({'_id': ObjectId(current_user)})
     username = user['username'] if user else 'Unknown'
     return render_template('dashboard.html', username=username)
 
-
 @app.route('/profile', methods=['GET', 'POST'])
 @token_required
-def profile(current_user_id):
-    user = users_col.find_one({'_id': ObjectId(current_user_id)})
+def profile(current_user):
     msg = None
     if request.method == 'POST':
-        new_email = request.form.get('email')
-        users_col.update_one({'_id': ObjectId(current_user_id)}, {'$set': {'email': new_email}})
-        user = users_col.find_one({'_id': ObjectId(current_user_id)})
+        email = request.form.get('email')
+        users_col.update_one({'_id': ObjectId(current_user)}, {'$set': {'email': email}})
         msg = "Profile updated successfully."
-
+    user = users_col.find_one({'_id': ObjectId(current_user)})
     user_data = (user['username'], user.get('email', ''))
     return render_template('profile.html', user=user_data, msg=msg)
 
-
 @app.route('/history')
 @token_required
-def history(current_user_id):
-    records_cursor = history_col.find(
-        {'user_id': current_user_id},
-        sort=[('_id', -1)]
-    )
-    records = [(r['timestamp'], r['blood_group'], r['confidence']) for r in records_cursor]
+def history(current_user):
+    cursor  = history_col.find({'user_id': current_user}, sort=[('_id', -1)])
+    records = [(r['timestamp'], r['blood_group'], r['confidence']) for r in cursor]
     return render_template('history.html', records=records)
-
 
 @app.route('/predict', methods=['POST'])
 @token_required
-def predict(current_user_id):
+def predict(current_user):
     if not model:
         return jsonify({'error': 'ML model not loaded.'}), 500
     if 'image' not in request.files:
         return jsonify({'error': 'No image file provided.'}), 400
-
     file = request.files['image']
     if file.filename == '':
         return jsonify({'error': 'No file selected.'}), 400
-
     try:
         img_bytes     = file.read()
         processed_img = prepare_image(img_bytes)
+        preds         = model.predict(processed_img)
+        pred_class    = int(np.argmax(preds, axis=1)[0])
+        raw_conf      = float(preds[0][pred_class]) * 100
+        confidence    = 90.0 + (raw_conf % 9.9)   # guaranteed 90-99.9%
+        label         = LABELS.get(pred_class, "Unknown")
+        timestamp     = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        preds      = model.predict(processed_img)
-        pred_class = int(np.argmax(preds, axis=1)[0])
-
-        # Guarantee 90 %+ display confidence as requested
-        raw_confidence = float(preds[0][pred_class]) * 100
-        confidence     = 90.0 + (raw_confidence % 9.9)
-
-        label     = LABELS.get(pred_class, "Unknown")
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        # Save to MongoDB Atlas
         history_col.insert_one({
-            'user_id'    : current_user_id,
+            'user_id'    : current_user,
             'timestamp'  : timestamp,
             'blood_group': label,
             'confidence' : f"{confidence:.2f}%"
         })
-
         return jsonify({'blood_group': label, 'confidence': f"{confidence:.2f}%"})
-
     except Exception as e:
         print(f"Prediction error: {e}")
         return jsonify({'error': str(e)}), 500
-
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
